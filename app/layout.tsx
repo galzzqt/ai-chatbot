@@ -9,8 +9,11 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "OLLI AI - TopsellBelanja Commerce Assistant",
+  title: "OLLI AI - TopsellBelanja AI Assistant",
   description: "Asisten belanja AI resmi dari TopsellBelanja. Temukan rekomendasi gadget terbaik, hitung cicilan, dan bandingkan spesifikasi HP dengan mudah.",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
