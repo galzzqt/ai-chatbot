@@ -1,0 +1,494 @@
+TopsellBelanja AI Commerce Assistant — Full Implementation Plan
+Project Overview
+
+Membangun AI Commerce Assistant untuk Topsell Belanja menggunakan:
+
+Next.js App Router
+AI SDK
+Gemini Flash (free/cheap AI)
+PostgreSQL
+WooCommerce API
+shadcn/ui
+Tailwind CSS
+Auth.js
+
+Tujuan utama:
+
+membantu user memilih produk
+meningkatkan conversion
+mengurangi CS manual
+tetap low cost / hampir gratis
+1. Core Strategy
+IMPORTANT
+
+JANGAN membuat:
+
+General AI Chatbot
+
+BUAT:
+
+AI Commerce Assistant
+2. Main Architecture
+User
+↓
+Next.js Chat UI
+↓
+Intent Detection Layer
+↓
+━━━━━━━━━━━━━━━━━━
+FAQ Engine
+Product Search
+Product Compare
+Order Tracking
+Installment Calculator
+AI Recommendation
+━━━━━━━━━━━━━━━━━━
+↓
+Gemini Flash (only when needed)
+↓
+Streaming Response
+3. Main Tech Stack
+Layer	Technology
+Frontend	Next.js App Router
+UI	shadcn/ui
+Styling	Tailwind CSS
+AI SDK	Vercel AI SDK
+AI Model	Gemini 2.5 Flash
+Database	PostgreSQL
+ORM	Drizzle ORM
+Authentication	Auth.js
+Storage	Vercel Blob
+Hosting	Vercel
+Product Source	WooCommerce REST API
+4. Main Features
+Phase 1 — MVP
+Features
+AI chat UI
+Product recommendation
+Product comparison
+FAQ engine
+Order tracking
+Installment calculator
+Conversation history
+Mobile responsive UI
+5. Folder Structure
+app/
+  (auth)/
+  (dashboard)/
+  api/
+    ai/
+    products/
+    orders/
+    webhook/
+  chat/
+  layout.tsx
+  page.tsx
+
+components/
+  chat/
+  product/
+  ui/
+  sidebar/
+
+lib/
+  ai/
+  db/
+  auth/
+  tools/
+  woocommerce/
+
+actions/
+hooks/
+types/
+providers/
+6. Database Design
+users
+CREATE TABLE users (
+  id UUID PRIMARY KEY,
+  name TEXT,
+  email TEXT UNIQUE,
+  image TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+conversations
+CREATE TABLE conversations (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  title TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+messages
+CREATE TABLE messages (
+  id UUID PRIMARY KEY,
+  conversation_id UUID REFERENCES conversations(id),
+  role TEXT,
+  content TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+products_cache
+CREATE TABLE products_cache (
+  id BIGINT PRIMARY KEY,
+  name TEXT,
+  slug TEXT,
+  category TEXT,
+  brand TEXT,
+  price NUMERIC,
+  stock INTEGER,
+  specs JSONB,
+  short_description TEXT,
+  updated_at TIMESTAMP
+);
+7. WooCommerce Integration
+Objective
+
+Sinkronisasi product WooCommerce ke PostgreSQL agar:
+
+search lebih cepat
+murah
+tidak selalu hit API WooCommerce
+Recommended Flow
+WooCommerce
+↓
+Cron Sync
+↓
+PostgreSQL Cache
+↓
+AI Assistant
+8. Product Sync Service
+Create Cron Job
+Sync:
+products
+categories
+stock
+prices
+promo
+Example Endpoint
+/api/sync/products
+Sync Interval
+
+Recommended:
+
+Every 10–30 minutes
+9. AI System Design
+IMPORTANT
+
+AI bukan sumber utama data.
+
+AI hanya:
+
+reasoning
+recommendation
+explanation
+10. Intent Detection
+Tujuan
+
+Menentukan:
+
+apakah perlu AI
+atau cukup database
+Intent Types
+type Intent =
+  | "faq"
+  | "product_search"
+  | "product_compare"
+  | "order_tracking"
+  | "installment"
+  | "recommendation"
+11. AI Cost Optimization
+IMPORTANT
+
+Jangan semua query ke AI.
+
+Example
+User:
+
+HP gaming 3 jutaan
+
+Flow:
+1. Search database
+2. Ambil 5 produk
+3. Kirim ringkasan ke AI
+4. AI ranking + explain
+12. Product Search Engine
+Use PostgreSQL Search
+
+Recommended:
+
+Full Text Search
+pg_trgm
+ILIKE
+Example Search
+SELECT *
+FROM products_cache
+WHERE name ILIKE '%iphone%'
+ORDER BY price ASC;
+13. AI Recommendation Flow
+Example
+User:
+
+Laptop editing 10 jutaan
+
+System Flow
+Intent Detection
+↓
+Search DB
+↓
+Get candidate products
+↓
+Send compact data to Gemini Flash
+↓
+Generate recommendation
+↓
+Return formatted response
+14. AI SDK Integration
+Recommended
+Install
+npm install ai @ai-sdk/google
+Model
+
+Use:
+
+Gemini 2.5 Flash
+
+Karena:
+
+murah
+cepat
+quota besar
+15. AI Route Example
+Route
+/app/api/ai/chat/route.ts
+Responsibilities
+receive message
+detect intent
+call tools
+optionally call AI
+stream response
+16. Tool Calling System
+IMPORTANT
+
+Semua logic commerce harus jadi tools.
+
+Recommended Tools
+Product Search
+searchProducts({
+  keyword,
+  budget,
+  category,
+  brand
+})
+Compare Products
+compareProducts({
+  productIds
+})
+Installment Calculator
+calculateInstallment({
+  productId,
+  tenor
+})
+Order Tracking
+trackOrder({
+  orderNumber
+})
+FAQ Tool
+searchFAQ({
+  keyword
+})
+17. FAQ Engine
+IMPORTANT
+
+FAQ jangan pakai AI.
+
+Gunakan:
+
+JSON
+database
+keyword matching
+Example FAQ
+{
+  "garansi": "Semua produk bergaransi resmi.",
+  "retur": "Retur berlaku maksimal 7 hari.",
+  "preorder": "Preorder mengikuti estimasi kedatangan."
+}
+18. Installment System
+
+Karena Topsell kuat di cicilan.
+
+Features
+Akulaku
+Kredivo
+Home Credit
+Shopee Paylater
+AI Use Case
+User:
+
+Cicilan iPhone 15 berapa?
+
+AI:
+
+hitung tenor
+tampilkan simulasi
+19. Order Tracking
+
+Integrasi:
+
+PostgreSQL
+WooCommerce
+custom checkout
+Example
+User:
+
+Pesanan saya sudah dikirim?
+
+AI:
+
+fetch order
+tampilkan status
+20. Authentication
+Use Auth.js
+Login Methods
+Google
+Magic link
+Protected Features
+conversation history
+order tracking
+personalized recommendation
+21. Chat UI Design
+Desktop
+Sidebar + Chat Layout
+Mobile
+Floating Bottom Sheet
+22. UI Components
+Required Components
+Chat input
+Streaming message
+Product card
+Comparison table
+Installment widget
+Conversation sidebar
+Loading skeleton
+23. Product Card Design
+Must Include
+image
+name
+price
+cicilan
+stock
+CTA button
+24. Conversation Memory
+Save:
+last products viewed
+preferred brand
+budget range
+Example
+
+User sering cari:
+
+gaming phone
+Xiaomi
+
+AI bisa personalize recommendation.
+
+25. Recommended Response Style
+
+AI harus:
+
+pendek
+jelas
+sales-oriented
+tidak terlalu panjang
+Example Good Response
+Kalau untuk gaming 3 jutaan, saya rekomendasikan Poco X series karena performanya kuat untuk PUBG dan MLBB, plus refresh rate tinggi.
+26. Streaming Response
+
+Use:
+
+AI SDK streaming
+
+Karena UX lebih modern.
+
+27. Deployment Strategy
+Use Vercel
+Environment Variables
+DATABASE_URL=
+GOOGLE_GENERATIVE_AI_API_KEY=
+AUTH_SECRET=
+AUTH_GOOGLE_ID=
+AUTH_GOOGLE_SECRET=
+NEXT_PUBLIC_APP_URL=
+28. Security
+IMPORTANT
+Add:
+rate limiting
+anti spam
+message length limit
+protected APIs
+29. Recommended Development Timeline
+Week 1
+setup Next.js
+auth
+database
+chat UI
+Week 2
+WooCommerce sync
+product search
+FAQ engine
+Week 3
+AI recommendation
+comparison
+installment tools
+Week 4
+order tracking
+optimization
+deployment
+30. Recommended MVP Scope
+MUST HAVE
+Commerce Features
+product recommendation
+compare product
+installment calculator
+FAQ
+order tracking
+DON'T BUILD YET
+voice AI
+AI agents
+realtime browsing
+expensive RAG system
+advanced vector DB
+enterprise features
+31. Long-Term Roadmap
+Future Features
+AI Memory
+remember preferences
+WhatsApp AI
+omnichannel assistant
+CRM Integration
+customer segmentation
+Personalized Promo
+AI promo recommendation
+32. Main Success KPI
+Measure:
+conversion rate
+average order value
+chat engagement
+CS reduction
+checkout completion
+33. Final Recommendation
+MOST IMPORTANT
+
+Fokus pada:
+
+AI yang membantu user membeli produk lebih cepat.
+
+Bukan:
+
+AI paling pintar.
+
+Karena untuk marketplace seperti Topsell:
+
+UX
+recommendation
+speed
+integration
+
+lebih penting daripada model AI mahal.
