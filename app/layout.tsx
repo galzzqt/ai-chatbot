@@ -26,7 +26,7 @@ export default function RootLayout({
       lang="en"
       className={`${dmSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="overflow-hidden">{children}</body>
     </html>
   );
 }

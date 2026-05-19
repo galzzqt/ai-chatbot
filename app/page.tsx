@@ -2,27 +2,48 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "ai/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  Send, 
-  Sparkles, 
-  RefreshCw, 
-  User, 
-  Bot, 
-  Smartphone, 
-  Scale, 
-  CreditCard, 
-  Compass, 
-  CheckCircle2, 
+import { Avatar } from "@/components/ui/avatar";
+import {
+  Send,
+  Sparkles,
+  RefreshCw,
+  User,
+  Bot,
+  Smartphone,
+  Scale,
+  CreditCard,
   HelpCircle,
-  ChevronRight,
   Loader2,
   Sun,
-  Moon
+  Moon,
+  CheckCircle2,
+  Plus,
+  Search,
+  Tag,
+  ShoppingBag,
+  Mic,
+  ArrowUp,
 } from "lucide-react";
+
+// ─── Suggestion chips data ────────────────────────────────────────────────────
+const CHIPS = [
+  { label: "Cari HP", icon: Smartphone },
+  { label: "Bandingkan Spek", icon: Scale },
+  { label: "Simulasi Cicilan", icon: CreditCard },
+  { label: "Promo Terkini", icon: Tag },
+  { label: "Garansi & Kebijakan", icon: HelpCircle },
+  { label: "Rekomendasi", icon: Sparkles },
+];
+
+// ─── Suggestion full prompts ───────────────────────────────────────────────────
+const CHIP_PROMPTS: Record<string, string> = {
+  "Cari HP": "Cari HP Oppo terbaru",
+  "Bandingkan Spek": "Bandingkan Oppo A6X vs Infinix Note Edge",
+  "Simulasi Cicilan": "Hitung cicilan HP harga 4 juta tenor 12 bulan",
+  "Promo Terkini": "Ada promo atau diskon apa sekarang di Topsell?",
+  "Garansi & Kebijakan": "Bagaimana kebijakan garansi di Topsell?",
+  Rekomendasi: "Rekomendasikan HP gaming terbaik budget 3 juta",
+};
 
 export default function ChatPage() {
   const { messages, input, handleInputChange, handleSubmit, setInput, isLoading } = useChat({
@@ -30,6 +51,7 @@ export default function ChatPage() {
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
   const [syncCount, setSyncCount] = useState<number | null>(null);
   const [darkMode, setDarkMode] = useState<boolean>(true);
@@ -41,356 +63,461 @@ export default function ChatPage() {
     }
   }, [messages, isLoading]);
 
-  // WooCommerce Sync Handler
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + "px";
+    }
+  }, [input]);
+
+  // WooCommerce Sync Handler — ambil semua halaman
   const handleSync = async () => {
     setSyncStatus("syncing");
+    setSyncCount(null);
     try {
       const res = await fetch("/api/sync/products");
       const data = await res.json();
       if (data.success) {
         setSyncStatus("success");
-        setSyncCount(50); // WooCommerce fetch limit in api
+        setSyncCount(data.synced ?? data.total ?? null);
       } else {
         setSyncStatus("error");
       }
-    } catch (error) {
+    } catch {
       setSyncStatus("error");
     }
     setTimeout(() => setSyncStatus("idle"), 5000);
   };
 
-  // Suggestion click handler
   const handleSuggestionClick = (text: string) => {
     setInput(text);
+    textareaRef.current?.focus();
   };
 
-  // Simple Markdown & Format Parser to render rich text beautifully
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (input.trim() && !isLoading) {
+        handleSubmit(e as unknown as React.FormEvent<HTMLFormElement>);
+      }
+    }
+  };
+
+  // ── Rich-text renderer ──────────────────────────────────────────────────────
   const renderMessageContent = (text: string) => {
-    // Escape HTML to prevent XSS
     const escapeHTML = (str: string) =>
-      str.replace(/[&<>'"]/g, 
-        (tag) => 
-          ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            "'": '&#39;',
-            '"': '&quot;'
-          }[tag] || tag)
+      str.replace(/[&<>'\"]/g, (tag) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[tag] || tag)
       );
 
-    const escapedText = escapeHTML(text);
+    let formatted = escapeHTML(text).replace(
+      /\*\*(.*?)\*\*/g,
+      '<strong class="font-semibold text-red-400">$1</strong>'
+    );
 
-    // 1. Ganti bold **text** dengan strong
-    let formatted = escapedText.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-red-500">$1</strong>');
-    
-    // 2. Format list items
-    const lines = formatted.split("\n");
-    return lines.map((line, idx) => {
-      // Bullet points
+    return formatted.split("\n").map((line, idx) => {
       if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
         return (
-          <li key={idx} className="ml-4 list-disc my-1 leading-relaxed" 
-              dangerouslySetInnerHTML={{ __html: line.trim().substring(2) }} />
+          <li key={idx} className="ml-4 list-disc my-1 leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: line.trim().substring(2) }} />
         );
       }
-      // Numbered list
       const numMatch = line.trim().match(/^(\d+)\.\s(.*)/);
       if (numMatch) {
         return (
           <li key={idx} className="ml-4 list-decimal my-1 leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: numMatch[2] }} />
+            dangerouslySetInnerHTML={{ __html: numMatch[2] }} />
         );
       }
-      // Empty line / spacer
-      if (line.trim() === "") {
-        return <div key={idx} className="h-2" />;
-      }
-      // Default paragraph
+      if (line.trim() === "") return <div key={idx} className="h-2" />;
       return (
-        <p key={idx} className="leading-relaxed my-1" 
-           dangerouslySetInnerHTML={{ __html: line }} />
+        <p key={idx} className="leading-relaxed my-1"
+          dangerouslySetInnerHTML={{ __html: line }} />
       );
     });
   };
 
-  return (
-    <div className={darkMode ? "dark" : ""}>
-      <div className="relative min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans overflow-hidden transition-colors duration-300">
-        
-        {/* Background glowing gradients (only in dark mode for premium look, or soft pink in light mode) */}
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-red-500/5 dark:bg-red-600/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-rose-500/5 dark:bg-rose-600/10 rounded-full blur-[120px] pointer-events-none" />
+  const isEmptyChat = messages.length === 0;
 
-        {/* Top Navbar */}
-        <header className="sticky top-0 z-10 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md px-6 py-4 flex items-center justify-between transition-colors duration-300">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-red-600 to-rose-500 shadow-lg shadow-red-600/20">
-              <Bot className="h-5 w-5 text-white" />
-              <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-slate-950 animate-pulse" />
+  return (
+    <div className={darkMode ? "dark" : ""} style={{ height: "100dvh", overflow: "hidden" }}>
+      <div className="relative h-full w-full flex flex-col font-sans overflow-hidden transition-colors duration-300"
+        style={{ backgroundColor: darkMode ? "#0d0d0d" : "#f5f4f0" }}
+      >
+        {/* Subtle radial glow */}
+        <div className="pointer-events-none fixed inset-0 overflow-hidden">
+          <div
+            style={{
+              position: "absolute",
+              top: "20%",
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "600px",
+              height: "600px",
+              background: darkMode
+                ? "radial-gradient(circle, rgba(220,38,38,0.06) 0%, transparent 70%)"
+                : "radial-gradient(circle, rgba(220,38,38,0.04) 0%, transparent 70%)",
+              borderRadius: "50%",
+            }}
+          />
+        </div>
+
+        {/* ── Navbar ── */}
+        <header
+          className="flex-shrink-0 z-20 flex items-center justify-between px-5 py-3 border-b transition-colors duration-300"
+          style={{
+            backgroundColor: darkMode ? "rgba(13,13,13,0.85)" : "rgba(245,244,240,0.85)",
+            borderColor: darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)",
+            backdropFilter: "blur(16px)",
+          }}
+        >
+          {/* Brand */}
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-red-600 to-rose-500 shadow-lg shadow-red-600/30">
+              <Bot className="h-4 w-4 text-white" />
+              <span
+                className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400"
+                style={{
+                  outline: `2px solid ${darkMode ? "#0d0d0d" : "#f5f4f0"}`,
+                  outlineOffset: "0px",
+                }}
+              />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold tracking-tight text-slate-900 dark:text-white text-lg">OLLI AI</span>
-                <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600 dark:text-red-400 border border-red-500/20">
-                  Official Assistant
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">TopsellBelanja Commerce Bot</p>
-            </div>
+            <span className="font-bold tracking-tight text-sm"
+              style={{ color: darkMode ? "#ffffff" : "#111111" }}>
+              OLLI AI
+            </span>
+            <span className="hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border"
+              style={{
+                backgroundColor: darkMode ? "rgba(220,38,38,0.1)" : "rgba(220,38,38,0.06)",
+                borderColor: darkMode ? "rgba(220,38,38,0.2)" : "rgba(220,38,38,0.15)",
+                color: darkMode ? "#f87171" : "#dc2626",
+              }}>
+              TopsellBelanja
+            </span>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            {/* Theme Toggle Button */}
-            <Button
-              onClick={() => setDarkMode(!darkMode)}
-              variant="outline"
-              className="border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white p-2.5 h-10 w-10 rounded-xl transition-all"
-              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            >
-              {darkMode ? (
-                <Sun className="h-4.5 w-4.5 text-amber-400" />
-              ) : (
-                <Moon className="h-4.5 w-4.5 text-indigo-600" />
-              )}
-            </Button>
-
-            {/* Sync WooCommerce Button */}
-            <Button 
+          {/* Nav actions */}
+          <div className="flex items-center gap-2">
+            {/* Sync button */}
+            <button
               onClick={handleSync}
               disabled={syncStatus === "syncing"}
-              variant="outline"
-              className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white text-xs gap-2 py-1.5 h-10 rounded-xl transition-all"
+              title="Sync Products"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border transition-all duration-200 hover:opacity-80 disabled:opacity-50"
+              style={{
+                backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                borderColor: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                color: darkMode ? "#a1a1aa" : "#52525b",
+              }}
             >
               {syncStatus === "syncing" ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-red-500" />
-                  <span className="hidden sm:inline">Syncing...</span>
-                </>
+                <><Loader2 className="h-3 w-3 animate-spin text-red-500" /><span className="hidden sm:inline">Syncing semua...</span></>
               ) : syncStatus === "success" ? (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
-                  <span className="hidden sm:inline">Synced!</span>
-                </>
+                <><CheckCircle2 className="h-3 w-3 text-emerald-500" /><span className="hidden sm:inline">{syncCount ? `${syncCount} produk ✓` : "Synced!"}</span></>
+              ) : syncStatus === "error" ? (
+                <><RefreshCw className="h-3 w-3 text-red-400" /><span className="hidden sm:inline text-red-400">Gagal, coba lagi</span></>
               ) : (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5 text-red-500" />
-                  <span className="hidden sm:inline">Sync Products</span>
-                </>
+                <><RefreshCw className="h-3 w-3 text-red-500" /><span className="hidden sm:inline">Sync Produk</span></>
               )}
-            </Button>
+            </button>
+
+            {/* Dark/Light toggle */}
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              title={darkMode ? "Light mode" : "Dark mode"}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border transition-all duration-200 hover:opacity-80"
+              style={{
+                backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                borderColor: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+              }}
+            >
+              {darkMode ? (
+                <Sun className="h-3.5 w-3.5 text-amber-400" />
+              ) : (
+                <Moon className="h-3.5 w-3.5 text-indigo-500" />
+              )}
+            </button>
           </div>
         </header>
 
-        {/* Main Container */}
-        <main className="flex-1 flex w-full max-w-7xl mx-auto px-4 py-6 gap-6 overflow-hidden h-[calc(100vh-73px)]">
-          
-          {/* Left Sidebar (Helper Guide) - Hidden on smaller screens */}
-          <aside className="hidden lg:flex w-80 flex-col gap-4 flex-shrink-0">
-            {/* Personality Card */}
-            <Card className="border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 backdrop-blur-sm transition-colors duration-300">
-              <CardContent className="p-5 flex flex-col gap-4">
-                <div className="flex items-center gap-2.5 text-sm font-semibold text-slate-800 dark:text-white">
-                  <Sparkles className="h-4.5 w-4.5 text-red-500 dark:text-red-400" />
-                  Kenalan dengan OLLI
-                </div>
-                <p className="text-xs text-slate-550 dark:text-slate-400 leading-relaxed">
-                  OLLI adalah AI shopping assistant resmi dari TopsellBelanja. OLLI ngerti banget soal gadget, spek HP, dan simulasi cicilan. Tanyain aja dengan gaya santai!
+        {/* ── Main content ── */}
+        <main className="flex-1 flex flex-col w-full max-w-3xl mx-auto px-4 overflow-hidden min-h-0">
+
+          {isEmptyChat ? (
+            /* ── Empty / Welcome state ── */
+            <div className="flex-1 flex flex-col items-center justify-center gap-8 py-12">
+              {/* Headline */}
+              <div className="text-center space-y-2">
+                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight"
+                  style={{ color: darkMode ? "#ffffff" : "#111111" }}>
+                  Ada yang bisa OLLI bantu?
+                </h1>
+                <p className="text-sm"
+                  style={{ color: darkMode ? "#71717a" : "#71717a" }}>
+                  AI Shopping Assistant dari TopsellBelanja — cari gadget, bandingkan spek, hitung cicilan.
                 </p>
-                <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400 dark:text-slate-500">WooCommerce DB Cache</span>
-                    <span className="text-emerald-650 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" /> Connected
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400 dark:text-slate-500">LLM Engine</span>
-                    <span className="text-red-500 dark:text-red-400 font-semibold">Gemini 2.5 Flash</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Quick Actions / Prompts */}
-            <Card className="border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 backdrop-blur-sm flex-1 flex flex-col overflow-hidden transition-colors duration-300">
-              <CardContent className="p-5 flex flex-col gap-3 overflow-y-auto">
-                <div className="flex items-center gap-2.5 text-sm font-semibold text-slate-800 dark:text-white mb-1">
-                  <Compass className="h-4.5 w-4.5 text-red-500 dark:text-red-400" />
-                  Coba Tanya OLLI
-                </div>
-                
-                <div className="flex flex-col gap-2.5 text-xs">
-                  <button 
-                    onClick={() => handleSuggestionClick("Cari HP Oppo terbaru")}
-                    className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 hover:border-red-500/30 transition-all text-slate-700 dark:text-slate-300 flex items-start gap-2.5 group"
+              {/* Suggestion Chips */}
+              <div className="flex flex-wrap justify-center gap-2.5 max-w-xl">
+                {CHIPS.map(({ label, icon: Icon }) => (
+                  <button
+                    key={label}
+                    onClick={() => handleSuggestionClick(CHIP_PROMPTS[label] ?? label)}
+                    className="flex items-center gap-2 rounded-full px-4 py-2 text-sm border font-medium transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
+                    style={{
+                      backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                      borderColor: darkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+                      color: darkMode ? "#d4d4d8" : "#3f3f46",
+                    }}
                   >
-                    <Smartphone className="h-4 w-4 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                    <div>
-                      <span className="font-medium text-slate-900 dark:text-white block">Rekomendasi HP</span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500">"Cari HP Oppo terbaru"</span>
-                    </div>
+                    <Icon className="h-3.5 w-3.5 text-red-500" />
+                    {label}
                   </button>
+                ))}
+              </div>
 
-                  <button 
-                    onClick={() => handleSuggestionClick("Bandingkan Oppo A6X vs Infinix Note Edge")}
-                    className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 hover:border-red-500/30 transition-all text-slate-700 dark:text-slate-300 flex items-start gap-2.5 group"
-                  >
-                    <Scale className="h-4 w-4 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                    <div>
-                      <span className="font-medium text-slate-900 dark:text-white block">Bandingkan Spek</span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500">"Bandingkan Oppo A6X vs Infinix Note Edge"</span>
-                    </div>
-                  </button>
-
-                  <button 
-                    onClick={() => handleSuggestionClick("Hitung cicilan HP harga 4 juta tenor 12 bulan")}
-                    className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 hover:border-red-500/30 transition-all text-slate-700 dark:text-slate-300 flex items-start gap-2.5 group"
-                  >
-                    <CreditCard className="h-4 w-4 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                    <div>
-                      <span className="font-medium text-slate-900 dark:text-white block">Simulasi Cicilan</span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500">"Hitung cicilan HP harga 4 juta..."</span>
-                    </div>
-                  </button>
-
-                  <button 
-                    onClick={() => handleSuggestionClick("Bagaimana kebijakan garansi di Topsell?")}
-                    className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 hover:border-red-500/30 transition-all text-slate-700 dark:text-slate-300 flex items-start gap-2.5 group"
-                  >
-                    <HelpCircle className="h-4 w-4 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                    <div>
-                      <span className="font-medium text-slate-900 dark:text-white block">Kebijakan & FAQ</span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500">"Kebijakan garansi di Topsell"</span>
-                    </div>
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-          </aside>
-
-          {/* Right Chat Column */}
-          <section className="flex-1 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/20 backdrop-blur-sm overflow-hidden transition-colors duration-300">
-            
-            {/* Chat Messages Panel */}
-            <div 
-              ref={scrollRef} 
-              className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-850 scrollbar-track-transparent min-h-0"
-            >
-              {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full max-w-lg mx-auto text-center gap-6 py-12">
-                  <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 shadow-xl shadow-red-600/10">
-                    <Bot className="h-8 w-8 text-white animate-bounce" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Halo! OLLI di sini 👋</h2>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                      AI Shopping Assistant resmi dari TopsellBelanja. OLLI bisa bantu cari gadget terbaik, compare spesifikasi, hitung simulasi cicilan per bulan, atau jawab pertanyaan kamu seputar toko.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mt-2">
-                    <button 
-                      onClick={() => handleSuggestionClick("Cari HP Oppo harga 2 jutaan")}
-                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/50 hover:border-slate-300 dark:hover:border-slate-700 text-left transition-all text-xs flex items-center justify-between group"
-                    >
-                      <span className="text-slate-700 dark:text-slate-300">Cari HP Oppo 2 jutaan</span>
-                      <ChevronRight className="h-4 w-4 text-slate-450 dark:text-slate-500 group-hover:text-red-500 group-hover:translate-x-1 transition-all" />
-                    </button>
-                    <button 
-                      onClick={() => handleSuggestionClick("Hitung cicilan laptop harga 8 juta tenor 6 bulan")}
-                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/50 hover:border-slate-300 dark:hover:border-slate-700 text-left transition-all text-xs flex items-center justify-between group"
-                    >
-                      <span className="text-slate-700 dark:text-slate-300">Hitung cicilan laptop 8jt</span>
-                      <ChevronRight className="h-4 w-4 text-slate-450 dark:text-slate-500 group-hover:text-red-500 group-hover:translate-x-1 transition-all" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex gap-4 ${
-                        message.role === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      {/* Bot Avatar (only on bot messages) */}
-                      {message.role !== "user" && (
-                        <Avatar className="h-9 w-9 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 flex items-center justify-center flex-shrink-0 transition-colors duration-300">
-                          <Bot className="h-4.5 w-4.5 text-red-500" />
-                        </Avatar>
-                      )}
-
-                      {/* Chat Bubble */}
-                      <div
-                        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 shadow-sm text-sm ${
-                          message.role === "user"
-                            ? "bg-gradient-to-br from-red-600 to-rose-600 text-white rounded-br-none"
-                            : "bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 text-slate-800 dark:text-slate-200 rounded-bl-none"
-                        }`}
-                      >
-                        <div className="space-y-1">
-                          {message.role === "user" ? (
-                            <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                          ) : (
-                            renderMessageContent(message.content)
-                          )}
-                        </div>
-                      </div>
-
-                      {/* User Avatar (only on user messages) */}
-                      {message.role === "user" && (
-                        <Avatar className="h-9 w-9 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 flex items-center justify-center flex-shrink-0 transition-colors duration-300">
-                          <User className="h-4.5 w-4.5 text-slate-500 dark:text-slate-400" />
-                        </Avatar>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Streaming / Loading Indicator */}
-                  {isLoading && (
-                    <div className="flex gap-4 justify-start">
-                      <Avatar className="h-9 w-9 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 flex items-center justify-center flex-shrink-0 animate-pulse transition-colors duration-300">
-                        <Bot className="h-4.5 w-4.5 text-red-500" />
-                      </Avatar>
-                      <div className="bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl rounded-bl-none p-4 shadow-sm text-sm text-slate-400 flex items-center gap-2">
-                        <span className="flex space-x-1.5 items-center h-4">
-                          <span className="block h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-650 animate-bounce" style={{ animationDelay: "0ms" }} />
-                          <span className="block h-2 w-2 rounded-full bg-slate-500 dark:bg-slate-550 animate-bounce" style={{ animationDelay: "150ms" }} />
-                          <span className="block h-2 w-2 rounded-full bg-slate-650 dark:bg-slate-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Form Input Area */}
-            <div className="p-4 bg-slate-100/50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800/80 backdrop-blur-md transition-colors duration-300">
-              <form onSubmit={handleSubmit} className="flex gap-3">
-                <Input
-                  value={input}
-                  onChange={handleInputChange}
-                  placeholder="Tanya OLLI soal spek HP, cicilan, atau promo..."
-                  className="flex-1 bg-white dark:bg-slate-900/60 border-slate-250 dark:border-slate-850 hover:border-slate-350 dark:hover:border-slate-800 focus-visible:ring-red-500 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-xl h-11 text-sm shadow-inner"
-                  disabled={isLoading}
+              {/* Input box (welcome state) */}
+              <div className="w-full">
+                <InputBox
+                  darkMode={darkMode}
+                  input={input}
+                  handleInputChange={handleInputChange}
+                  handleSubmit={handleSubmit}
+                  handleKeyDown={handleKeyDown}
+                  isLoading={isLoading}
+                  textareaRef={textareaRef}
                 />
-                <Button 
-                  type="submit" 
-                  disabled={isLoading || !input.trim()} 
-                  className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl px-5 h-11 shadow-lg shadow-red-600/10 hover:shadow-red-600/20 active:scale-[0.98] transition-all"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </form>
+              </div>
             </div>
+          ) : (
+            /* ── Chat messages state ── */
+            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+              {/* Messages scroll area — ONLY this scrolls */}
+              <div
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto py-6 space-y-6 min-h-0"
+                style={{ scrollbarWidth: "thin", scrollbarColor: darkMode ? "#27272a transparent" : "#d4d4d8 transparent" }}
+              >
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {/* Bot icon */}
+                    {message.role !== "user" && (
+                      <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center bg-gradient-to-tr from-red-600 to-rose-500">
+                        <Bot className="h-4 w-4 text-white" />
+                      </div>
+                    )}
 
-          </section>
+                    {/* Bubble */}
+                    <div
+                      className="max-w-[85%] sm:max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm"
+                      style={
+                        message.role === "user"
+                          ? {
+                              background: "linear-gradient(135deg, #dc2626, #e11d48)",
+                              color: "#ffffff",
+                              borderBottomRightRadius: "4px",
+                            }
+                          : {
+                              backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                              border: `1px solid ${darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+                              color: darkMode ? "#e4e4e7" : "#27272a",
+                              borderBottomLeftRadius: "4px",
+                            }
+                      }
+                    >
+                      <div className="space-y-1">
+                        {message.role === "user" ? (
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                        ) : (
+                          renderMessageContent(message.content)
+                        )}
+                      </div>
+                    </div>
 
+                    {/* User icon */}
+                    {message.role === "user" && (
+                      <div
+                        className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center border"
+                        style={{
+                          backgroundColor: darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                          borderColor: darkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+                        }}
+                      >
+                        <User className="h-4 w-4" style={{ color: darkMode ? "#a1a1aa" : "#71717a" }} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Typing indicator */}
+                {isLoading && (
+                  <div className="flex gap-3 justify-start">
+                    <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center bg-gradient-to-tr from-red-600 to-rose-500 animate-pulse">
+                      <Bot className="h-4 w-4 text-white" />
+                    </div>
+                    <div
+                      className="rounded-2xl px-4 py-3 flex items-center gap-1.5"
+                      style={{
+                        backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                        border: `1px solid ${darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+                        borderBottomLeftRadius: "4px",
+                      }}
+                    >
+                      {[0, 150, 300].map((delay) => (
+                        <span
+                          key={delay}
+                          className="h-2 w-2 rounded-full animate-bounce"
+                          style={{
+                            backgroundColor: darkMode ? "#52525b" : "#a1a1aa",
+                            animationDelay: `${delay}ms`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input box (chat state) — stays fixed at bottom */}
+              <div className="flex-shrink-0 pb-4 pt-2">
+                <InputBox
+                  darkMode={darkMode}
+                  input={input}
+                  handleInputChange={handleInputChange}
+                  handleSubmit={handleSubmit}
+                  handleKeyDown={handleKeyDown}
+                  isLoading={isLoading}
+                  textareaRef={textareaRef}
+                />
+              </div>
+            </div>
+          )}
         </main>
-
       </div>
     </div>
+  );
+}
+
+// ─── InputBox component ────────────────────────────────────────────────────────
+function InputBox({
+  darkMode,
+  input,
+  handleInputChange,
+  handleSubmit,
+  handleKeyDown,
+  isLoading,
+  textareaRef,
+}: {
+  darkMode: boolean;
+  input: string;
+  handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  handleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  isLoading: boolean;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+}) {
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="relative w-full rounded-2xl border overflow-hidden transition-all duration-200"
+      style={{
+        backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+        borderColor: darkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+        boxShadow: darkMode
+          ? "0 0 0 1px rgba(255,255,255,0.04), 0 4px 32px rgba(0,0,0,0.4)"
+          : "0 0 0 1px rgba(0,0,0,0.04), 0 4px 24px rgba(0,0,0,0.06)",
+      }}
+    >
+      {/* Textarea */}
+      <textarea
+        ref={textareaRef}
+        value={input}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        placeholder="Tanya OLLI soal spek HP, cicilan, atau promo..."
+        disabled={isLoading}
+        rows={1}
+        className="w-full resize-none bg-transparent px-5 pt-4 pb-3 text-sm outline-none placeholder-opacity-50 transition-colors duration-200"
+        style={{
+          color: darkMode ? "#e4e4e7" : "#27272a",
+          caretColor: "#dc2626",
+          minHeight: "52px",
+          maxHeight: "200px",
+        }}
+      />
+
+      {/* Bottom toolbar */}
+      <div className="flex items-center justify-between px-4 pb-3 pt-1">
+        {/* Left tools */}
+        <div className="flex items-center gap-1">
+          <ToolbarButton darkMode={darkMode} title="Attach">
+            <Plus className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton darkMode={darkMode} title="Search">
+            <Search className="h-4 w-4" />
+            <span className="text-xs hidden sm:inline">Cari Produk</span>
+          </ToolbarButton>
+          <ToolbarButton darkMode={darkMode} title="Shop">
+            <ShoppingBag className="h-4 w-4" />
+            <span className="text-xs hidden sm:inline">Rekomendasi</span>
+          </ToolbarButton>
+        </div>
+
+        {/* Right: Send button */}
+        <button
+          type="submit"
+          disabled={isLoading || !input.trim()}
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{
+            background:
+              !isLoading && input.trim()
+                ? "linear-gradient(135deg, #dc2626, #e11d48)"
+                : darkMode
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.08)",
+            color: !isLoading && input.trim() ? "#ffffff" : darkMode ? "#52525b" : "#a1a1aa",
+            boxShadow: !isLoading && input.trim() ? "0 2px 12px rgba(220,38,38,0.35)" : "none",
+          }}
+        >
+          {isLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ArrowUp className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Toolbar button ────────────────────────────────────────────────────────────
+function ToolbarButton({
+  darkMode,
+  title,
+  children,
+}: {
+  darkMode: boolean;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs border transition-all duration-200 hover:opacity-80 active:scale-95"
+      style={{
+        backgroundColor: darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+        borderColor: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+        color: darkMode ? "#71717a" : "#71717a",
+      }}
+    >
+      {children}
+    </button>
   );
 }

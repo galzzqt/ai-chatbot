@@ -128,3 +128,38 @@
     @apply font-sans;
   }
 }
+
+/* ── Custom textarea placeholder ── */
+textarea::placeholder {
+  color: #52525b;
+  opacity: 1;
+}
+
+.dark textarea::placeholder {
+  color: #52525b;
+  opacity: 1;
+}
+
+/* ── Smooth scrollbar ── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 128, 0.25);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 120, 128, 0.45);
+}
+
+/* ── Textarea auto-resize ── */
+textarea {
+  field-sizing: content;
+}
