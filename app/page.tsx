@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "ai/react";
 import { Avatar } from "@/components/ui/avatar";
+import { AI_MODELS, type AIModel } from "@/lib/ai/models";
 import {
   Send,
   Sparkles,
@@ -17,12 +18,10 @@ import {
   Sun,
   Moon,
   CheckCircle2,
-  Plus,
-  Search,
   Tag,
-  ShoppingBag,
   Mic,
   ArrowUp,
+  ChevronDown,
 } from "lucide-react";
 
 // ─── Suggestion chips data ────────────────────────────────────────────────────
@@ -46,8 +45,12 @@ const CHIP_PROMPTS: Record<string, string> = {
 };
 
 export default function ChatPage() {
+  const [selectedModel, setSelectedModel] = useState<AIModel>(AI_MODELS[0]);
   const { messages, input, handleInputChange, handleSubmit, setInput, isLoading } = useChat({
     api: "/api/ai/chat",
+    body: {
+      modelId: selectedModel.id,
+    },
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -289,6 +292,8 @@ export default function ChatPage() {
                   handleKeyDown={handleKeyDown}
                   isLoading={isLoading}
                   textareaRef={textareaRef}
+                  selectedModel={selectedModel}
+                  setSelectedModel={setSelectedModel}
                 />
               </div>
             </div>
@@ -394,6 +399,8 @@ export default function ChatPage() {
                   handleKeyDown={handleKeyDown}
                   isLoading={isLoading}
                   textareaRef={textareaRef}
+                  selectedModel={selectedModel}
+                  setSelectedModel={setSelectedModel}
                 />
               </div>
             </div>
@@ -413,6 +420,8 @@ function InputBox({
   handleKeyDown,
   isLoading,
   textareaRef,
+  selectedModel,
+  setSelectedModel,
 }: {
   darkMode: boolean;
   input: string;
@@ -421,11 +430,28 @@ function InputBox({
   handleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   isLoading: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  selectedModel: AIModel;
+  setSelectedModel: (model: AIModel) => void;
 }) {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   return (
     <form
       onSubmit={handleSubmit}
-      className="relative w-full rounded-2xl border overflow-hidden transition-all duration-200"
+      className="relative w-full rounded-2xl border overflow-visible transition-all duration-200"
       style={{
         backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
         borderColor: darkMode ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
@@ -454,19 +480,96 @@ function InputBox({
 
       {/* Bottom toolbar */}
       <div className="flex items-center justify-between px-4 pb-3 pt-1">
-        {/* Left tools */}
-        <div className="flex items-center gap-1">
-          <ToolbarButton darkMode={darkMode} title="Attach">
-            <Plus className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton darkMode={darkMode} title="Search">
-            <Search className="h-4 w-4" />
-            <span className="text-xs hidden sm:inline">Cari Produk</span>
-          </ToolbarButton>
-          <ToolbarButton darkMode={darkMode} title="Shop">
-            <ShoppingBag className="h-4 w-4" />
-            <span className="text-xs hidden sm:inline">Rekomendasi</span>
-          </ToolbarButton>
+        {/* Left tools: Gemini Model Selector */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs border font-medium transition-all duration-200 hover:opacity-80 active:scale-95"
+            style={{
+              backgroundColor: darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+              borderColor: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+              color: darkMode ? "#a1a1aa" : "#52525b",
+            }}
+          >
+            <Sparkles className="h-3.5 w-3.5 text-red-500" />
+            <span>{selectedModel.name}</span>
+            <ChevronDown className="h-3 w-3 opacity-60" />
+          </button>
+
+          {showDropdown && (
+            <div
+              className="absolute left-0 bottom-full mb-2 w-64 rounded-xl border shadow-lg z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-150"
+              style={{
+                backgroundColor: darkMode ? "#18181b" : "#ffffff",
+                borderColor: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+                boxShadow: darkMode 
+                  ? "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)" 
+                  : "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+              }}
+            >
+              <div 
+                className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider uppercase border-b mb-1"
+                style={{
+                  color: darkMode ? "#a1a1aa" : "#71717a",
+                  borderColor: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                }}
+              >
+                Pilih Model Gemini AI
+              </div>
+              {AI_MODELS.map((model) => (
+                <button
+                  key={model.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedModel(model);
+                    setShowDropdown(false);
+                  }}
+                  className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-all hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  style={{
+                    backgroundColor:
+                      selectedModel.id === model.id
+                        ? darkMode
+                          ? "rgba(220,38,38,0.15)"
+                          : "rgba(220,38,38,0.08)"
+                        : "transparent",
+                    color: darkMode ? "#e4e4e7" : "#27272a",
+                  }}
+                >
+                  <Sparkles 
+                    className={`h-3.5 w-3.5 flex-shrink-0 ${
+                      selectedModel.id === model.id ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
+                    }`} 
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate flex items-center gap-1.5">
+                      {model.name}
+                      {model.id === selectedModel.id && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                      )}
+                    </div>
+                    <div 
+                      className="text-[10px] truncate mt-0.5"
+                      style={{ color: darkMode ? "#a1a1aa" : "#71717a" }}
+                    >
+                      {model.description}
+                    </div>
+                  </div>
+                  {model.isFree && (
+                    <span
+                      className="flex-shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded"
+                      style={{
+                        backgroundColor: darkMode ? "rgba(34,197,94,0.15)" : "rgba(34,197,94,0.1)",
+                        color: "#22c55e",
+                      }}
+                    >
+                      FREE
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Right: Send button */}
@@ -493,31 +596,5 @@ function InputBox({
         </button>
       </div>
     </form>
-  );
-}
-
-// ─── Toolbar button ────────────────────────────────────────────────────────────
-function ToolbarButton({
-  darkMode,
-  title,
-  children,
-}: {
-  darkMode: boolean;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs border transition-all duration-200 hover:opacity-80 active:scale-95"
-      style={{
-        backgroundColor: darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
-        borderColor: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-        color: darkMode ? "#71717a" : "#71717a",
-      }}
-    >
-      {children}
-    </button>
   );
 }

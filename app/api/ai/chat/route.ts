@@ -3,12 +3,15 @@ import { google } from '@ai-sdk/google';
 import { z } from 'zod';
 import { searchProducts } from '@/lib/tools/products';
 import { calculateInstallment } from '@/lib/tools/installment';
+import { getModelById, getDefaultModel } from '@/lib/ai/models';
 
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  const { messages, modelId } = await req.json();
+
+  const selectedModel = getModelById(modelId) || getDefaultModel();
 
   const result = await streamText({
-    model: google('models/gemini-2.5-flash'),
+    model: selectedModel.model,
     messages,
     system: `OLLI AI ASSISTANT TOPSELLBELANJA
 
