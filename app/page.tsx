@@ -114,10 +114,15 @@ export default function ChatPage() {
         ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[tag] || tag)
       );
 
-    let formatted = escapeHTML(text).replace(
-      /\*\*(.*?)\*\*/g,
-      '<strong class="font-semibold text-red-400">$1</strong>'
-    );
+    let formatted = escapeHTML(text)
+      .replace(
+        /\*\*(.*?)\*\*/g,
+        '<strong class="font-semibold text-red-400">$1</strong>'
+      )
+      .replace(
+        /\[([^\]]+)\]\(([^)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-red-500 hover:text-red-400 underline decoration-red-500/30 underline-offset-2">$1</a>'
+      );
 
     return formatted.split("\n").map((line, idx) => {
       if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
@@ -189,7 +194,7 @@ export default function ChatPage() {
             </div>
             <span className="font-bold tracking-tight text-sm"
               style={{ color: darkMode ? "#ffffff" : "#111111" }}>
-              OLLI AI
+              VIRANDA
             </span>
             <span className="hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border"
               style={{
@@ -255,7 +260,7 @@ export default function ChatPage() {
               <div className="text-center space-y-2">
                 <h1 className="text-3xl sm:text-4xl font-bold tracking-tight"
                   style={{ color: darkMode ? "#ffffff" : "#111111" }}>
-                  Ada yang bisa OLLI bantu?
+                  Ada yang bisa Viranda bantu?
                 </h1>
                 <p className="text-sm"
                   style={{ color: darkMode ? "#71717a" : "#71717a" }}>
@@ -324,16 +329,16 @@ export default function ChatPage() {
                       style={
                         message.role === "user"
                           ? {
-                              background: "linear-gradient(135deg, #dc2626, #e11d48)",
-                              color: "#ffffff",
-                              borderBottomRightRadius: "4px",
-                            }
+                            background: "linear-gradient(135deg, #dc2626, #e11d48)",
+                            color: "#ffffff",
+                            borderBottomRightRadius: "4px",
+                          }
                           : {
-                              backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
-                              border: `1px solid ${darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
-                              color: darkMode ? "#e4e4e7" : "#27272a",
-                              borderBottomLeftRadius: "4px",
-                            }
+                            backgroundColor: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                            border: `1px solid ${darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+                            color: darkMode ? "#e4e4e7" : "#27272a",
+                            borderBottomLeftRadius: "4px",
+                          }
                       }
                     >
                       <div className="space-y-1">
@@ -466,7 +471,7 @@ function InputBox({
         value={input}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        placeholder="Tanya OLLI soal spek HP, cicilan, atau promo..."
+        placeholder="Tanya Viranda soal spek HP, cicilan, atau promo..."
         disabled={isLoading}
         rows={1}
         className="w-full resize-none bg-transparent px-5 pt-4 pb-3 text-sm outline-none placeholder-opacity-50 transition-colors duration-200"
@@ -503,12 +508,12 @@ function InputBox({
               style={{
                 backgroundColor: darkMode ? "#18181b" : "#ffffff",
                 borderColor: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
-                boxShadow: darkMode 
-                  ? "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)" 
+                boxShadow: darkMode
+                  ? "0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)"
                   : "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
               }}
             >
-              <div 
+              <div
                 className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider uppercase border-b mb-1"
                 style={{
                   color: darkMode ? "#a1a1aa" : "#71717a",
@@ -536,10 +541,9 @@ function InputBox({
                     color: darkMode ? "#e4e4e7" : "#27272a",
                   }}
                 >
-                  <Sparkles 
-                    className={`h-3.5 w-3.5 flex-shrink-0 ${
-                      selectedModel.id === model.id ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
-                    }`} 
+                  <Sparkles
+                    className={`h-3.5 w-3.5 flex-shrink-0 ${selectedModel.id === model.id ? "text-red-500" : "text-zinc-400 dark:text-zinc-500"
+                      }`}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate flex items-center gap-1.5">
@@ -548,7 +552,7 @@ function InputBox({
                         <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                       )}
                     </div>
-                    <div 
+                    <div
                       className="text-[10px] truncate mt-0.5"
                       style={{ color: darkMode ? "#a1a1aa" : "#71717a" }}
                     >
@@ -582,8 +586,8 @@ function InputBox({
               !isLoading && input.trim()
                 ? "linear-gradient(135deg, #dc2626, #e11d48)"
                 : darkMode
-                ? "rgba(255,255,255,0.08)"
-                : "rgba(0,0,0,0.08)",
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.08)",
             color: !isLoading && input.trim() ? "#ffffff" : darkMode ? "#52525b" : "#a1a1aa",
             boxShadow: !isLoading && input.trim() ? "0 2px 12px rgba(220,38,38,0.35)" : "none",
           }}
